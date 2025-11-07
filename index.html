@@ -133,11 +133,11 @@
         const loadingIndicator = document.getElementById('loading-indicator');
         const resultsContainer = document.getElementById('results-container');
         const messageBox = document.getElementById('message-box');
-        const apiKey = ""; // API key will be provided by the environment
+        const apiKey = "AIzaSyD96luWwd2cNjPiAAqlkrJ_4dLI8E_kLWk"; // API key will be provided by the environment
 
         // Set PDF.js worker source
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-        const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+        const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${AIzaSyD96luWwd2cNjPiAAqlkrJ_4dLI8E_kLWk}`;
 
         /**
          * Utility to display temporary messages/errors.
@@ -562,3 +562,4 @@ Return ONLY a single JSON object with these exact keys: "dateOfSlip", "clientNam
     </script>
 </body>
 </html>
+
