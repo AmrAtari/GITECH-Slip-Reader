@@ -78,34 +78,7 @@
         .focus\:ring-gitech-red:focus { --tw-ring-color: #EF4444; }
         .focus\:border-gitech-red:focus { border-color: #EF4444; }
         
-        /* === ZOOM FEATURE CUSTOM STYLES === */
-        
-        .image-zoom-container {
-            /* w-full h-48 from Tailwind */
-            position: relative; /* Essential for positioning the zoom lens */
-        }
-        
-        .zoom-preview {
-            width: 150px;       /* Size of the magnified window */
-            height: 150px;      /* Size of the magnified window */
-            border-radius: 50%; /* Make it circular */
-            overflow: hidden;   /* Essential to crop the zoomed image */
-            transform: translate(-50%, -50%); /* Centers the lens over the cursor */
-            z-index: 10;
-        }
-
-        .zoom-source {
-            /* The image inside the lens. Its size controls the zoom level. */
-            position: absolute;
-            width: 300%; /* Magnification factor (3x zoom) */
-            height: auto;
-            /* Ensures smooth rendering */
-            image-rendering: optimizeSpeed; 
-            image-rendering: -moz-crisp-edges;
-            image-rendering: -webkit-optimize-contrast;
-            image-rendering: optimize-contrast; 
-            -ms-interpolation-mode: nearest-neighbor;
-        }
+        /* Removed all Zoom Feature Custom Styles */
 
     </style>
 </head>
@@ -113,7 +86,7 @@
 
     <div id="app-container" class="max-w-4xl mx-auto">
         <header class="text-center mb-10">
-            <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAOEAAADhCAMAAAAJbSJIAAAAk1BMVEX////9/f38/Pz5+fnr6+vm5ubm5uYGBgbPz8/Z2dnLy8vAwMCurq7T09Pg4ODh4eHq6urIyMjW1tbk5OTMzMympqbFxcXKysrExMTj4+PGxsbU1NTe3t7c3t7c3Nzt7e3S0tLHx8fW1tbh4eHV1dXd3d3S0tLf39/g4ODm5ubm5ubl5eXk5OTi4uLg4ODc3Nzb29vR0dHp6enIyMjDwsKDp2WkAAAKUklEQVR4nO2daXeiOhCGY3WvFj1uRAsQQUXUu+P1/3+hN0iCJXFOcm/X2g+kSSZJyWTiZDIZlQCAwGAwGAwGg8FgMBgMBoPBYDAYDAaDwWCo1qgXW7QJ5f/9z7w23/nPrb2n3hfvfF5qK/Wv/u/V/X+/XhX93Xm3Wd17t1ndu2J3XuzWb1eFfvfO92nE//n/d2q/f2j9/9Pq/0/b/279+7279/1P6/8/b//719q/19b/X1j/P1z/v7z/71hX6m9n/d3T73u3a//e2/9+b/z/c2v/v7f/3zP+/7H+/7H+/2tX6W3t/b23/v7X+v6//92v9/2//+4b+f2/8+7b+f/f7x/t+f+r9e3d/v3T72N0/v3b7+N3f//u09f+3ev//tP7/+9v//239/4/0/+P9P/j/3+3/v9v/v279/x/W/3/h/n92/n93/v/H+3+M/v90/t/vF+3/v93/3yX+b8f9/19r/d9b/29r/f+z/m+P+f+f2/9/b/7/x/t/f33/31v/99n//+3/f/f/v33/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/36qQWAAAAAASUVORK5CYII=" alt="GITECH Lifts & Escalators L.L.C Logo" class="mx-auto h-24 w-auto mb-4">
+            <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAOEAAADhCAMAAAAJbSJIAAAAk1BMVEX////9/f38/Pz5+fnr6+vm5ubm5uYGBgbPz8/Z2dnLy8vAwMCurq7T09Pg4ODh4eHq6urIyMjW1tbk5OTMzMympqbFxcXKysrExMTj4+PGxsbU1NTe3t7c3t7c3Nzt7e3S0tLHx8fW1tbh4eHV1dXd3d3S0tLf39/g4ODm5ubm5ubl5eXk5OTi4uLg4ODc3Nzb29vR0dHp6enIyMjDwsKDp2WkAAAKUklEQVR4nO2daXeiOhCGY3WvFj1uRAsQQUXUu+P1/3+hN0iCJXFOcm/X2g+kSSZJyWTiZDIZlQCAwGAwGAwGg8FgMBgMBoPBYDAYDAaDwWCo1qgXW7QJ5f/9z7w23/nPrb2n3hfvfF5qK/Wv/u/V/X+/XhX93Xm3Wd17t1ndu2J3XuzWb1eFfvfO92nE//n/d2q/f2j9/9Pq/0/b/279+7279/1P6/8/b//719q/19b/X1j/P1z/v7z/71hX6m9n/d3T73u3a//e2/9+b/z/c2v/v7f/3zP+/7H+/7H+/2tX6W3t/b23/v7X+v6//92v9/2//+4b+f2/8+7b+f/f7x/t+f+r9e3d/v3T72N0/v3b7+N3f//u09f+3ev//tP7/+9v//239/4/0/+P9P/j/3+3/v9v/v279/x/W/3/h/n92/n93/v/H+3+M/v90/t/vF+3/v93/3yX+b8f9/19r/d9b/29r/f+z/m+P+f+f2/9/b/7/x/t/f33/31v/99n//+3/f/f/v33/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/v/3/36qQWAAAAASUVORK5CYII=" alt="GITECH Lifts & Escalators L.L.C Logo" class="mx-auto h-24 w-auto mb-4">
             <h1 class="text-4xl font-extrabold text-gitech-black">GITECH Document Extractor</h1>
             <div id="message-box" class="mt-4 p-3 bg-red-100 text-red-700 rounded-lg hidden"></div>
         </header>
@@ -399,69 +372,23 @@ Return ONLY a single JSON object with these exact keys: "dateOfSlip", "clientNam
         }
 
         /**
-         * Function to handle mouse movement for the image zoom effect.
-         * This function is called directly from the HTML 'onmousemove' attribute.
+         * Function to toggle the visibility of the raw OCR text (now the structured JSON).
          */
-        function imageZoom(imgContainerId, zoomLensId, e) {
-            const imgContainer = document.getElementById(imgContainerId);
-            const zoomLens = document.getElementById(zoomLensId);
-            const zoomSource = zoomLens.querySelector('.zoom-source');
-            
-            if (!imgContainer || !zoomLens || !zoomSource) return;
-
-            // Get bounding box of the main image container
-            const containerRect = imgContainer.getBoundingClientRect();
-            
-            // Get cursor position relative to the container
-            // The 'e.pageX/Y' gets the position relative to the document
-            const cursorX = e.clientX - containerRect.left;
-            const cursorY = e.clientY - containerRect.top;
-            
-            // Check if cursor is within bounds (shouldn't be needed due to onmouseout/onmouseover but good for safety)
-            if (cursorX < 0 || cursorY < 0 || cursorX > containerRect.width || cursorY > containerRect.height) {
-                zoomLens.style.display = 'none';
-                return;
+        function toggleRawText(id) {
+            const element = document.getElementById(`raw-text-${id}`);
+            const button = document.getElementById(`toggle-btn-${id}`);
+            if (element.classList.contains('hidden')) {
+                element.classList.remove('hidden');
+                button.textContent = 'Hide Extracted JSON';
+            } else {
+                element.classList.add('hidden');
+                button.textContent = 'Show Extracted JSON for Debugging';
             }
-
-            // --- 1. Position the Zoom Lens (Preview) ---
-            
-            // Center the zoom lens over the cursor (the translate(-50%, -50%) in CSS helps here)
-            zoomLens.style.left = cursorX + 'px';
-            zoomLens.style.top = cursorY + 'px';
-
-            // --- 2. Calculate Zoomed Image Position ---
-            
-            // The zoom factor is hardcoded in CSS: .zoom-source { width: 300%; } -> 3x zoom
-            const zoomFactor = 3; 
-
-            // Get the displayed dimensions of the container
-            const containerWidth = containerRect.width;
-            const containerHeight = containerRect.height;
-            
-            // Get the dimensions of the zoom source image *at its magnified size* (300%)
-            const sourceWidth = containerWidth * zoomFactor;
-            const sourceHeight = containerHeight * zoomFactor;
-
-            // Get the dimensions of the zoom lens window
-            const lensWidth = zoomLens.offsetWidth;
-            const lensHeight = zoomLens.offsetHeight;
-            
-            // Calculate the position of the full-size (zoom-source) image
-            // We need to map the cursor position (0-100% of container) to the shift distance
-            
-            // Calculate how far to shift the background image within the lens
-            // The shift range is (MagnifiedSize - LensSize)
-            const bgX = (sourceWidth - lensWidth) * (cursorX / containerWidth);
-            const bgY = (sourceHeight - lensHeight) * (cursorY / containerHeight);
-
-            // Apply the shift (negative sign as the background moves in the opposite direction of the mouse)
-            zoomSource.style.left = (-bgX) + 'px';
-            zoomSource.style.top = (-bgY) + 'px';
         }
 
         /**
          * Step 4: Render the editable results form.
-         * MODIFIED: Layout is now stacked (image on top), and includes zoom elements.
+         * MODIFIED: Layout is stacked (image on top) and uses a static crop to focus on the data area.
          */
         function renderResults() {
             resultsContainer.innerHTML = '';
@@ -486,21 +413,11 @@ Return ONLY a single JSON object with these exact keys: "dateOfSlip", "clientNam
                     </h2>
                     
                     <div class="mb-6">
-                        <p class="text-sm font-medium text-gray-700 mb-2">Original Document (Top Section Preview - Hover to Zoom)</p>
+                        <p class="text-sm font-medium text-gray-700 mb-2">Original Document Preview (Data Area)</p>
                         
-                        <div id="image-zoom-container-${result.id}" 
-                             class="image-zoom-container relative w-full h-48 border rounded-lg overflow-hidden shadow-md cursor-crosshair"
-                             onmousemove="imageZoom('image-zoom-container-${result.id}', 'zoom-preview-${result.id}', event)"
-                             onmouseenter="document.getElementById('zoom-preview-${result.id}').style.display = 'block'"
-                             onmouseleave="document.getElementById('zoom-preview-${result.id}').style.display = 'none'"
-                        >
+                        <div class="relative w-full h-48 border rounded-lg overflow-hidden shadow-md">
                             <img src="${result.originalImageBase64}" alt="Original PDF Scan" 
-                                class="w-full h-full object-cover object-top">
-                                
-                            <div id="zoom-preview-${result.id}" class="zoom-preview absolute hidden bg-white border border-gray-400 shadow-xl pointer-events-none">
-                                <img src="${result.originalImageBase64}" alt="Zoom Source" 
-                                    class="zoom-source absolute w-full h-auto">
-                            </div>
+                                class="w-full h-full object-cover object-[50%_10%]">
                         </div>
                     </div>
                     
@@ -549,21 +466,6 @@ Return ONLY a single JSON object with these exact keys: "dateOfSlip", "clientNam
             });
         }
 
-
-        /**
-         * Function to toggle the visibility of the raw OCR text (now the structured JSON).
-         */
-        function toggleRawText(id) {
-            const element = document.getElementById(`raw-text-${id}`);
-            const button = document.getElementById(`toggle-btn-${id}`);
-            if (element.classList.contains('hidden')) {
-                element.classList.remove('hidden');
-                button.textContent = 'Hide Extracted JSON';
-            } else {
-                element.classList.add('hidden');
-                button.textContent = 'Show Extracted JSON for Debugging';
-            }
-        }
 
         /**
          * Step 5: Save the results and generate the new PDF.
