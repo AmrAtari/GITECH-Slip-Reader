@@ -11,9 +11,10 @@
     <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.js"></script> 
     
     <script type="module">
+        // UPDATED: Added collection, query, and getDocs for fetching the document list
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, setDoc, doc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, setDoc, doc, collection, query, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Global Firebase variables
         window.app = null;
@@ -33,12 +34,11 @@
 
         document.addEventListener('DOMContentLoaded', async () => {
             try {
-                // IMPORTANT: Use the global environment variables if available, otherwise use the custom config.
                 const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
    
                 const firebaseConfig = typeof __firebase_config !== 'undefined' 
                     ? JSON.parse(__firebase_config) 
-                    : CUSTOM_FIREBASE_CONFIG; // Use user-provided config as fallback
+                    : CUSTOM_FIREBASE_CONFIG;
                 
                
                 if (Object.keys(firebaseConfig).length > 0 && firebaseConfig.apiKey) {
@@ -53,22 +53,29 @@
                         await signInWithCustomToken(window.auth, initialAuthToken);
                         console.log("Firebase signed in with custom token.");
                     } else {
-                        // This should now succeed since Anonymous sign-in is enabled
                         await signInAnonymously(window.auth);
                         console.log("Firebase signed in anonymously.");
                     }
                     console.log(`Firestore initialized. App ID: ${appId}`);
+                    
+                    // NEW: Fetch and render saved documents after successful sign-in
+                    await window.fetchSavedDocuments(); 
+
                 } else {
                     console.warn("Firebase configuration not fully available. Proceeding without database storage.");
                 }
             } catch (error) {
                 console.error("Firebase Initialization Error:", error);
+                window.showMessage("Failed to initialize database connection. Check console.", true);
             }
         });
         
         // Exporting setDoc and doc globally for use in window.generateFinalPDF
         window.setDoc = setDoc;
         window.doc = doc;
+        window.collection = collection;
+        window.query = query;
+        window.getDocs = getDocs;
     </script>
     <style>
         /* Custom styles for better aesthetics and loading visibility */
@@ -102,45 +109,86 @@
         
         .focus\:ring-gitech-red:focus { --tw-ring-color: #EF4444; }
         .focus\:border-gitech-red:focus { border-color: #EF4444; }
-        
+
+        /* Sidebar Custom Styles */
+        #sidebar {
+            transition: transform 0.3s ease-in-out;
+            z-index: 50;
+        }
+        .sidebar-open #sidebar {
+            transform: translateX(0);
+        }
+        .sidebar-closed #sidebar {
+            transform: translateX(100%);
+        }
+        #sidebar-overlay {
+            z-index: 40;
+        }
     </style>
 </head>
-<body class="bg-gray-50 min-h-screen p-4 md:p-8">
-    <div id="app-container" class="max-w-4xl mx-auto">
-        <header class="text-center mb-10">
-            <h1 class="text-4xl font-extrabold text-gitech-black">GITECH PDF Data Extractor</h1>
-            <div id="message-box" class="mt-4 p-3 bg-red-100 text-red-700 rounded-lg hidden"></div>
-        </header>
+<body class="bg-gray-50 min-h-screen">
 
-        <div class="bg-white p-6 rounded-xl shadow-lg mb-8 border border-gitech-red">
-            <label for="pdf-upload" class="block text-lg font-medium text-gray-700 mb-3">Upload PDF Files</label>
-            <div class="flex items-center space-x-4">
-                <input type="file" id="pdf-upload" multiple accept=".pdf" 
-                       class="flex-grow w-full text-sm text-gray-500
-                       file:mr-4 file:py-2 file:px-4
-                                file:rounded-full file:border-0
-                                file:text-sm file:font-semibold
-                       file:bg-gitech-yellow-light file:text-gitech-black
-                                hover:file:bg-yellow-100 cursor-pointer"
-                       onchange="handleFileSelect(event)">
-                <button onclick="clearFiles()" class="bg-gray-200 text-gray-700 py-2 px-4 rounded-lg text-sm font-medium hover:bg-gray-300 transition duration-150 whitespace-nowrap">Clear</button>
-            </div>
-            <p class="text-xs text-gray-500 mt-2">Select one or multiple scanned PDF files.</p>
+    <div id="sidebar-overlay" class="fixed inset-0 bg-black bg-opacity-50 hidden" onclick="toggleSidebar()"></div>
+    <div id="sidebar" class="fixed top-0 right-0 h-full w-80 bg-white shadow-xl p-4 transform translate-x-full overflow-y-auto">
+        
+        <div class="flex justify-between items-center pb-4 border-b border-gray-200 sticky top-0 bg-white z-10">
+            <h3 class="text-xl font-bold text-gitech-red">Saved Documents</h3>
+            <button onclick="toggleSidebar()" class="text-gray-500 hover:text-gray-800 transition">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+        </div>
+
+        <div class="mt-4 sticky top-16 bg-white z-10 py-2">
+            <input type="text" id="client-search" onkeyup="filterSavedDocuments()" placeholder="Search by Client Account or Name" 
+                   class="w-full rounded-md border-gray-300 shadow-sm p-2 border focus:ring-gitech-red focus:border-gitech-red text-sm">
         </div>
         
-        <div id="loading-indicator" class="hidden text-center p-6 bg-yellow-50 rounded-xl shadow-md">
-     
-            <div class="spinner border-4 border-solid border-gray-200 h-10 w-10 rounded-full mx-auto mb-3"></div>
-            <p class="text-lg font-medium text-gitech-black">Sending image to Gemini for advanced data extraction... Please wait.</p>
-        </div>
+        <ul id="saved-document-list" class="mt-4 space-y-3">
+            <li id="sidebar-loading" class="text-gray-500 text-sm">Loading saved files...</li>
+            </ul>
+        <p id="sidebar-no-results" class="text-gray-500 text-sm mt-4 hidden">No matching documents found.</p>
 
-        <div id="results-container" class="space-y-8 mt-10">
-            <p class="text-center text-gray-500 p-8 border border-dashed rounded-lg">Upload a PDF to begin extraction.</p>
-        </div>
-
-        <canvas id="pdf-canvas" 
-        class="hidden"></canvas>
     </div>
+    <div id="main-content" class="relative transition-all duration-300 ease-in-out">
+        <div class="max-w-4xl mx-auto p-4 md:p-8">
+            <header class="text-center mb-10 relative">
+                <h1 class="text-4xl font-extrabold text-gitech-black">GITECH PDF Data Extractor</h1>
+                <div id="message-box" class="mt-4 p-3 bg-red-100 text-red-700 rounded-lg hidden"></div>
+                
+                <button onclick="toggleSidebar()" class="absolute top-0 right-0 bg-gitech-red text-white p-2 rounded-full shadow-lg hover:bg-gitech-red-dark transition">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+                </button>
+            </header>
+
+            <div class="bg-white p-6 rounded-xl shadow-lg mb-8 border border-gitech-red">
+                <label for="pdf-upload" class="block text-lg font-medium text-gray-700 mb-3">Upload PDF Files</label>
+                <div class="flex items-center space-x-4">
+                    <input type="file" id="pdf-upload" multiple accept=".pdf" 
+                           class="flex-grow w-full text-sm text-gray-500
+                           file:mr-4 file:py-2 file:px-4
+                                    file:rounded-full file:border-0
+                                    file:text-sm file:font-semibold
+                           file:bg-gitech-yellow-light file:text-gitech-black
+                                    hover:file:bg-yellow-100 cursor-pointer"
+                           onchange="handleFileSelect(event)">
+                    <button onclick="clearFiles()" class="bg-gray-200 text-gray-700 py-2 px-4 rounded-lg text-sm font-medium hover:bg-gray-300 transition duration-150 whitespace-nowrap">Clear</button>
+                </div>
+                <p class="text-xs text-gray-500 mt-2">Select one or multiple scanned PDF files.</p>
+            </div>
+            
+            <div id="loading-indicator" class="hidden text-center p-6 bg-yellow-50 rounded-xl shadow-md">
+                <div class="spinner border-4 border-solid border-gray-200 h-10 w-10 rounded-full mx-auto mb-3"></div>
+                <p class="text-lg font-medium text-gitech-black">Sending image to Gemini for advanced data extraction... Please wait.</p>
+            </div>
+
+            <div id="results-container" class="space-y-8 mt-10">
+                <p class="text-center text-gray-500 p-8 border border-dashed rounded-lg">Upload a PDF to begin extraction.</p>
+            </div>
+
+            <canvas id="pdf-canvas" class="hidden"></canvas>
+        </div>
+    </div>
+
 
     <script>
         // =========================================================================
@@ -155,13 +203,139 @@
         // =========================================================================
 
         let extractionResults = [];
+        let savedDocumentsCache = []; // NEW: Cache for saved documents
         const loadingIndicator = document.getElementById('loading-indicator');
         const resultsContainer = document.getElementById('results-container');
         const messageBox = document.getElementById('message-box');
+        const sidebar = document.getElementById('sidebar');
+        const sidebarOverlay = document.getElementById('sidebar-overlay');
+        const mainContent = document.getElementById('main-content');
+        const sidebarList = document.getElementById('saved-document-list');
+        const sidebarLoading = document.getElementById('sidebar-loading');
+        const sidebarNoResults = document.getElementById('sidebar-no-results');
+
+
         // Set PDF.js worker source
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
         
-        // --- Helper function to fetch the original PDF file as an ArrayBuffer.
+        // --- UI/Sidebar Functions ---
+
+        /**
+         * Toggles the sidebar open and closed.
+         */
+        window.toggleSidebar = function() {
+            const isOpen = sidebar.classList.contains('translate-x-full');
+            
+            if (isOpen) {
+                // Open the sidebar
+                sidebar.classList.remove('translate-x-full');
+                sidebarOverlay.classList.remove('hidden');
+            } else {
+                // Close the sidebar
+                sidebar.classList.add('translate-x-full');
+                sidebarOverlay.classList.add('hidden');
+            }
+        }
+        
+        /**
+         * Fetches saved documents from Firestore.
+         */
+        window.fetchSavedDocuments = async function() {
+            if (!window.db || !window.auth.currentUser) {
+                sidebarLoading.textContent = "Sign in required to view saved data.";
+                return [];
+            }
+
+            const userId = window.auth.currentUser.uid;
+            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+            
+            sidebarLoading.classList.remove('hidden');
+
+            try {
+                // Path: /artifacts/{appId}/users/{userId}/client_data/
+                const path = `artifacts/${appId}/users/${userId}/client_data`;
+                const q = window.query(window.collection(window.db, path));
+                const querySnapshot = await window.getDocs(q);
+                
+                savedDocumentsCache = [];
+                querySnapshot.forEach((doc) => {
+                    savedDocumentsCache.push({ id: doc.id, ...doc.data() });
+                });
+                
+                window.renderSidebar(savedDocumentsCache);
+                return savedDocumentsCache;
+            } catch (e) {
+                console.error("Error fetching documents:", e);
+                sidebarLoading.textContent = "Error loading saved files.";
+                return [];
+            } finally {
+                sidebarLoading.classList.add('hidden');
+            }
+        }
+
+        /**
+         * Renders the list of documents in the sidebar.
+         */
+        window.renderSidebar = function(documents) {
+            sidebarList.innerHTML = '';
+            sidebarNoResults.classList.add('hidden');
+
+            if (documents.length === 0) {
+                sidebarList.innerHTML = '<li class="text-gray-500 text-sm">No documents saved yet.</li>';
+                return;
+            }
+
+            documents.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+            documents.forEach(doc => {
+                const li = document.createElement('li');
+                li.className = 'p-3 bg-gray-100 rounded-lg border border-gray-200 hover:bg-gray-200 transition duration-150 cursor-pointer';
+                li.innerHTML = `
+                    <p class="font-semibold text-sm text-gitech-black">${doc.clientAccount.replace(/_/g, '/')}</p>
+                    <p class="text-xs text-gray-600 truncate">Client: ${doc.clientName}</p>
+                    <p class="text-xs text-gray-500">Date: ${doc.dateOfSlip || 'N/A'}</p>
+                `;
+                // Add a hidden attribute for easier filtering
+                li.setAttribute('data-search', `${doc.clientAccount} ${doc.clientName} ${doc.projectNumber}`.toLowerCase());
+                
+                sidebarList.appendChild(li);
+            });
+        }
+
+        /**
+         * Filters the rendered list based on search input.
+         */
+        window.filterSavedDocuments = function() {
+            const filter = document.getElementById('client-search').value.toLowerCase();
+            const listItems = sidebarList.getElementsByTagName('li');
+            let foundCount = 0;
+
+            for (let i = 0; i < listItems.length; i++) {
+                const li = listItems[i];
+                if (li.id === 'sidebar-loading' || li.textContent.includes('No documents saved')) continue; // Skip messages
+                
+                const searchValue = li.getAttribute('data-search');
+
+                if (searchValue.includes(filter)) {
+                    li.style.display = "";
+                    foundCount++;
+                } else {
+                    li.style.display = "none";
+                }
+            }
+            
+            if (foundCount === 0 && listItems.length > 0) {
+                sidebarNoResults.classList.remove('hidden');
+            } else {
+                sidebarNoResults.classList.add('hidden');
+            }
+        }
+
+        // --- Original Core Functions (Updated save and filename) ---
+
+        /**
+         * Helper function to fetch the original PDF file as an ArrayBuffer.
+         */
         window.fetchOriginalPdfFile = async function(fileName) {
             const files = document.getElementById('pdf-upload').files;
             const file = Array.from(files).find(f => f.name === fileName);
@@ -178,33 +352,36 @@
             });
         }
         
-        // --- Saves the extracted data to the Firestore database.
+        /**
+         * Saves the extracted data to the Firestore database.
+         */
         window.saveToFirestore = async function(editedData, fileName) {
             if (!window.db) {
                 console.warn("Firestore not initialized. Skipping database save.");
                 return;
             }
             
-            // Clean the clientAccount to prevent the '/' character from being interpreted
             const docId = editedData.clientAccount.replace(/\//g, '_'); 
             
             const dataToSave = {
                 fileName: fileName,
                 timestamp: new Date().toISOString(),
-                ...editedData // Includes dateOfSlip, clientName, projectNumber, clientAccount
+                ...editedData
             };
             
             const userId = window.auth.currentUser?.uid || 'anonymous';
             const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
             
             try {
-                // Path: /artifacts/{appId}/users/{userId}/client_data/{docId}
                 const docRef = window.doc(
                     window.db, 
                     `artifacts/${appId}/users/${userId}/client_data`, 
                     docId
                 );
                 await window.setDoc(docRef, dataToSave, { merge: true });
+                
+                // NEW: Refresh sidebar after successful save
+                await window.fetchSavedDocuments();
                 
                 console.log(`Document successfully written to client_data/${docId} by user ${userId}.`);
             } catch (e) {
@@ -231,12 +408,10 @@
         window.clearFiles = function() {
             const pdfFileInput = document.getElementById('pdf-upload');
             if (pdfFileInput) {
-                pdfFileInput.value = ''; // Clear file input
+                pdfFileInput.value = ''; 
             }
             
-            // Reset internal state
             extractionResults = [];
-            // Reset UI elements
             loadingIndicator.classList.add('hidden');
             resultsContainer.innerHTML = '<p class="text-center text-gray-500 p-8 border border-dashed rounded-lg">Upload a PDF to begin extraction.</p>';
             messageBox.classList.add('hidden');
@@ -262,7 +437,6 @@
             const filePromises = Array.from(files).map(file => processFileForGemini(file));
             try {
                 loadingIndicator.classList.remove('hidden');
-                // Process files sequentially to avoid hitting rate limits too quickly
                 const results = [];
                 for (const filePromise of filePromises) {
                     const result = await filePromise;
@@ -328,7 +502,7 @@
 
                         // Render PDF page to canvas at high resolution
                         const canvas = document.getElementById('pdf-canvas');
-                        const viewport = page.getViewport({ scale: 3.0 }); // Increased scale for better detail
+                        const viewport = page.getViewport({ scale: 3.0 }); 
                         canvas.width = viewport.width;
                         canvas.height = viewport.height;
                         
@@ -495,8 +669,7 @@
                     </h2>
                     
                     <div class="mb-6">
-                        <p class="text-sm font-medium text-gray-700 mb-2">Original Document Preview (Approx.
-                        50% Height)</p>
+                        <p class="text-sm font-medium text-gray-700 mb-2">Original Document Preview (Approx. 50% Height)</p>
                         
                         <div class="relative w-full h-96 border rounded-lg overflow-hidden shadow-md">
                             <img src="${result.originalImageBase64}" alt="Original PDF Scan"
@@ -557,7 +730,6 @@
 
         /**
          * Step 5: Save the results to Firestore and generate the merged PDF.
-         * FIX APPLIED: Corrected global access to pdf-lib from 'pdfLib' to 'PDFLib' (capital L).
          */
         window.generateFinalPDF = async function(resultId) {
             
@@ -593,7 +765,7 @@
             try {
                 // 3. Save Data to Firestore (Database Step)
                 await window.saveToFirestore(editedData, result.fileName);
-                showMessage(`Data saved to Firestore under Client Account: ${editedData.clientAccount}`, false);
+                showMessage(`Data saved to Firestore under Client Account: ${editedData.clientAccount}. Merged PDF downloading...`, false);
                 
                 // 4. Generate the Data PDF (The page containing the extracted text)
                 const { jsPDF } = window.jspdf;
@@ -624,7 +796,6 @@
                 
                 // Populate fields in the data PDF
                 ['Date Of Slip', 'Client Name', 'Project Number', 'Client Account'].forEach(label => {
-                    // Normalize label to match the keys in editedData object
                     const keyMap = {
                         'Date Of Slip': 'dateOfSlip',
                         'Client Name': 'clientName',
@@ -643,7 +814,6 @@
                 
                 // 5. Fetch Original PDF and Merge (Merging Step)
                 const originalPdfBuffer = await window.fetchOriginalPdfFile(result.fileName);
-                // Use the checked PDFDocument
                 const originalDoc = await PDFDocument.load(originalPdfBuffer);
                 const dataDoc = await PDFDocument.load(dataPdfBytes);
                 
@@ -658,9 +828,10 @@
                 const safeDate = editedData.dateOfSlip.replace(/[^a-zA-Z0-9]/g, '').substring(0, 8);
                 const safeClient = editedData.clientName.replace(/[^a-zA-Z0-9\s]/g, '').substring(0, 20).trim().replace(/\s/g, '_');
                 const safeProject = editedData.projectNumber.replace(/[^a-zA-Z0-9\s]/g, '').trim().replace(/\s/g, '_');
-                // Use the cleaned docId for the filename for consistency
                 const safeAccount = editedData.clientAccount.replace(/\//g, '_');
-                const fileName = `MERGED-${safeDate}-${safeClient}-${safeProject}-${safeAccount}.pdf`;
+                
+                // FIX: Removed the "MERGED-" prefix
+                const fileName = `${safeDate}-${safeClient}-${safeProject}-${safeAccount}.pdf`;
                 
                 const blob = new Blob([mergedPdfBytes], { type: 'application/pdf' });
                 const link = document.createElement('a');
@@ -670,7 +841,7 @@
                 link.click();
                 document.body.removeChild(link);
 
-                showMessage(`Successfully created and downloaded merged PDF: ${fileName}`, false);
+                showMessage(`Successfully created and downloaded PDF: ${fileName}`, false);
 
             } catch (error) {
                 console.error("Error during PDF generation, merging, or Firestore save:", error);
