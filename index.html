@@ -1,135 +1,184 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>GITECH PDF Data Extractor</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GITECH PDF Data Extractor</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+        // Global Firebase variables
+        window.app = null;
+        window.db = null;
+        window.auth = null;
 
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-    import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-    import { getFirestore } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+                const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
 
-    window.app = null;
-    window.db = null;
-    window.auth = null;
+                if (Object.keys(firebaseConfig).length > 0) {
+                    window.app = initializeApp(firebaseConfig);
+                    window.db = getFirestore(window.app);
+                    window.auth = getAuth(window.app);
 
-    document.addEventListener('DOMContentLoaded', async () => {
-      try {
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
-        if (Object.keys(firebaseConfig).length > 0) {
-          window.app = initializeApp(firebaseConfig);
-          window.db = getFirestore(window.app);
-          window.auth = getAuth(window.app);
-          const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-          if (token) await signInWithCustomToken(window.auth, token);
-          else await signInAnonymously(window.auth);
+                    const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+                    if (initialAuthToken) {
+                        await signInWithCustomToken(window.auth, initialAuthToken);
+                        console.log("Firebase signed in with custom token.");
+                    } else {
+                        await signInAnonymously(window.auth);
+                        console.log("Firebase signed in anonymously.");
+                    }
+                } else {
+                    console.warn("Firebase configuration not found. Proceeding without authentication.");
+                }
+            } catch (error) {
+                console.error("Firebase Initialization Error:", error);
+            }
+        });
+    </script>
+    <style>
+        /* Custom styles for better aesthetics and loading visibility */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .spinner {
+            border-top-color: #EF4444; /* GITECH Red accent */
+            -webkit-animation: spin 1s ease-in-out infinite;
+            animation: spin 1s ease-in-out infinite;
         }
-      } catch (err) {
-        console.error("Firebase init error:", err);
-      }
-    });
-  </script>
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .raw-text-content {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            max-height: 200px;
+            overflow-y: auto;
+            font-size: 0.8rem;
+        }
 
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
-    body { font-family: 'Inter', sans-serif; background: #f9fafb; }
-    .text-gitech-red { color: #EF4444; }
-    .bg-gitech-red { background-color: #EF4444; }
-    .border-gitech-red { border-color: #EF4444; }
-    .focus\:ring-gitech-red:focus { --tw-ring-color: #EF4444; }
-    .focus\:border-gitech-red:focus { border-color: #EF4444; }
-  </style>
+        /* Custom Tailwind colors based on GITECH logo */
+        .bg-gitech-red { background-color: #EF4444; }
+        .hover\:bg-gitech-red-dark:hover { background-color: #DC2626; }
+        .text-gitech-red { color: #EF4444; }
+        .border-gitech-red { border-color: #EF4444; }
+
+        .bg-gitech-yellow-light { background-color: #FEF3C7; }
+        .text-gitech-black { color: #1A1A1A; }
+
+        .focus\:ring-gitech-red:focus { --tw-ring-color: #EF4444; }
+        .focus\:border-gitech-red:focus { border-color: #EF4444; }
+
+        /* Custom style to crop the PDF preview (first 2 sections) */
+        .preview-crop-container {
+            max-height: 300px; /* Adjust this value to control how much of the PDF is visible */
+            overflow: hidden;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+        }
+    </style>
 </head>
+<body class="bg-gray-50 min-h-screen p-4 md:p-8">
 
-<body class="min-h-screen p-6">
-  <div class="max-w-4xl mx-auto space-y-6">
+    <div id="app-container" class="max-w-4xl mx-auto">
+        <header class="text-center mb-10">
+            <h1 class="text-2xl font-bold text-gray-800">PDF Data Extractor</h1>
+        </header>
 
-    <!-- Header -->
-    <header class="text-center">
-      <h1 class="text-2xl font-bold text-gitech-red">GITECH PDF Data Extractor</h1>
-      <p class="text-gray-600 mt-2">Upload a service slip to preview and extract data</p>
-    </header>
+        <div class="bg-white p-6 rounded-xl shadow-lg">
+            <h2 class="text-lg font-semibold mb-4 text-gitech-red">Upload PDF Document</h2>
+            <div class="flex items-center space-x-4">
+                <input type="file" id="pdf-file-input" accept="application/pdf" class="flex-grow block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-gitech-red file:text-white hover:file:bg-gitech-red-dark" />
+                <button onclick="clearFiles()" class="bg-gray-200 text-gray-700 py-2 px-4 rounded-lg text-sm font-medium hover:bg-gray-300 transition duration-150">Clear</button>
+            </div>
+        </div>
 
-    <!-- Upload -->
-    <div class="bg-white p-4 rounded-lg shadow border border-gray-200">
-      <label class="block font-medium mb-2 text-gray-700">Upload PDF File</label>
-      <input id="pdf-file-input" type="file" accept="application/pdf"
-             class="w-full border border-gray-300 rounded p-2 focus:ring-2 focus:ring-gitech-red focus:border-gitech-red">
+        <div id="loading-indicator" class="mt-8 text-center hidden">
+            <div class="spinner border-4 border-solid border-gray-200 h-10 w-10 rounded-full mx-auto mb-3"></div>
+            <p class="text-lg font-medium text-gitech-black">Sending image to Gemini for advanced data extraction... Please wait.</p>
+        </div>
+
+        <div id="results-container" class="space-y-8 mt-10">
+            <p class="text-center text-gray-500 p-8 border border-dashed rounded-lg">Upload a PDF to begin extraction.</p>
+        </div>
+
+        <canvas id="pdf-canvas" class="hidden"></canvas>
+
+        <div id="preview-container" class="mt-8">
+            <h2 id="preview-title" class="text-lg font-semibold mb-4 text-gray-800 hidden">File Preview (First Two Sections)</h2>
+            <div id="preview-crop" class="preview-crop-container hidden">
+                <canvas id="preview-canvas" class="w-full h-auto"></canvas>
+            </div>
+        </div>
     </div>
 
-    <!-- PDF Preview (top half only) -->
-    <div id="pdf-preview" class="hidden bg-white p-4 rounded-lg shadow border border-gray-200">
-      <h2 class="text-lg font-semibold mb-2 text-gitech-red">PDF Preview (Top Sections)</h2>
-      <canvas id="pdf-canvas" class="border w-full rounded"></canvas>
-    </div>
+    <script>
+        // =========================================================================
+        // API Configuration (FIXED SCOPE AND KEY)
+        // =========================================================================
+        // YOUR PROVIDED API KEY IS INSERTED HERE.
+        const apiKey = 'AIzaSyD96luWwd2cNjPiAAqlkrJ_4dLI8E_kLWk';
+        const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+        // =========================================================================
+        // END API Configuration
+        // =========================================================================
 
-    <!-- Extraction Result -->
-    <div id="extracted-result" class="bg-white p-4 rounded-lg shadow border border-gray-200">
-      <h2 class="text-lg font-semibold mb-2 text-gitech-red">Extracted Text</h2>
-      <div id="output-text" class="raw-text-content text-gray-800 whitespace-pre-wrap"></div>
-    </div>
-  </div>
+        let extractionResults = [];
+        const loadingIndicator = document.getElementById('loading-indicator');
+        const resultsContainer = document.getElementById('results-container');
+        const messageBox = document.getElementById('message-box');
+        const pdfFileInput = document.getElementById('pdf-file-input');
+        const previewContainer = document.getElementById('preview-container');
+        const previewTitle = document.getElementById('preview-title');
+        const previewCrop = document.getElementById('preview-crop');
+        const previewCanvas = document.getElementById('preview-canvas');
 
-  <script>
-    // High-quality top-half preview
-    async function showPDFPreview(file) {
-      const pdfjsLib = window['pdfjs-dist/build/pdf'];
-      pdfjsLib.GlobalWorkerOptions.workerSrc =
-        "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+        // Set PDF.js worker source
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
-      const reader = new FileReader();
-      reader.onload = async function() {
-        const typedarray = new Uint8Array(this.result);
-        const pdf = await pdfjsLib.getDocument(typedarray).promise;
-        const page = await pdf.getPage(1);
-        const viewport = page.getViewport({ scale: 2.0 }); // high-resolution
-        const canvas = document.getElementById("pdf-canvas");
-        const ctx = canvas.getContext("2d");
+        // --- Utility Functions ---
 
-        canvas.width = viewport.width;
-        canvas.height = viewport.height / 2;
-
-        const renderCtx = {
-          canvasContext: ctx,
-          viewport,
-          transform: [1, 0, 0, 0.5, 0, 0] // render top half only
-        };
-        await page.render(renderCtx).promise;
-        document.getElementById("pdf-preview").classList.remove("hidden");
-      };
-      reader.readAsArrayBuffer(file);
-    }
-
-    // Very simple text extraction demo (keeps your extractor intact)
-    async function extractTextFromPDF(file) {
-      const pdfjsLib = window['pdfjs-dist/build/pdf'];
-      const reader = new FileReader();
-      reader.onload = async function() {
-        const typedarray = new Uint8Array(this.result);
-        const pdf = await pdfjsLib.getDocument(typedarray).promise;
-        let fullText = "";
-        for (let i = 1; i <= pdf.numPages; i++) {
-          const page = await pdf.getPage(i);
-          const content = await page.getTextContent();
-          fullText += content.items.map(s => s.str).join(" ") + "\n\n";
+        /**
+         * Displays a message (success or error) to the user.
+         */
+        function showMessage(message, isError = false) {
+            resultsContainer.innerHTML = `<p class="p-4 rounded-lg ${isError ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}">${message}</p>`;
         }
-        document.getElementById("output-text").textContent = fullText.trim();
-      };
-      reader.readAsArrayBuffer(file);
-    }
 
-    document.getElementById("pdf-file-input").addEventListener("change", e => {
-      const file = e.target.files[0];
-      if (!file) return;
-      showPDFPreview(file);
-      extractTextFromPDF(file);
-    });
-  </script>
-</body>
-</html>
+        /**
+         * Clears all uploaded files and results.
+         */
+        window.clearFiles = function() {
+            pdfFileInput.value = ''; // Clear file input
+            resultsContainer.innerHTML = '<p class="text-center text-gray-500 p-8 border border-dashed rounded-lg">Upload a PDF to begin extraction.</p>';
+            previewCrop.classList.add('hidden');
+            previewTitle.classList.add('hidden');
+            extractionResults = [];
+        }
+
+        // --- Core Logic ---
+
+        /**
+         * Handles the file upload event.
+         */
+        pdfFileInput.addEventListener('change', async (event) => {
+            const file = event.target.files[0];
+            if (!file) {
+                clearFiles();
+                return;
+            }
+
+            loadingIndicator.classList.remove('hidden');
+            resultsContainer.innerHTML = '';
+            previewCrop.classList.add('hidden');
+            preview
