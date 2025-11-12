@@ -11,10 +11,10 @@
     <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.js"></script> 
     
     <script type="module">
-        // UPDATED: Added collection, query, and getDocs for fetching the document list
+        // UPDATED: Added deleteDoc for CRUD functionality
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, setDoc, doc, collection, query, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, setDoc, doc, collection, query, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Global Firebase variables
         window.app = null;
@@ -58,7 +58,7 @@
                     }
                     console.log(`Firestore initialized. App ID: ${appId}`);
                     
-                    // NEW: Fetch and render saved documents after successful sign-in
+                    // Fetch and render saved documents after successful sign-in
                     await window.fetchSavedDocuments(); 
 
                 } else {
@@ -70,12 +70,13 @@
             }
         });
         
-        // Exporting setDoc and doc globally for use in window.generateFinalPDF
+        // Exporting Firestore functions globally
         window.setDoc = setDoc;
         window.doc = doc;
         window.collection = collection;
         window.query = query;
         window.getDocs = getDocs;
+        window.deleteDoc = deleteDoc; // Exported for use in deleteSavedDocument
     </script>
     <style>
         /* Custom styles for better aesthetics and loading visibility */
@@ -203,13 +204,12 @@
         // =========================================================================
 
         let extractionResults = [];
-        let savedDocumentsCache = []; // NEW: Cache for saved documents
+        let savedDocumentsCache = []; // Cache for saved documents
         const loadingIndicator = document.getElementById('loading-indicator');
         const resultsContainer = document.getElementById('results-container');
         const messageBox = document.getElementById('message-box');
         const sidebar = document.getElementById('sidebar');
         const sidebarOverlay = document.getElementById('sidebar-overlay');
-        const mainContent = document.getElementById('main-content');
         const sidebarList = document.getElementById('saved-document-list');
         const sidebarLoading = document.getElementById('sidebar-loading');
         const sidebarNoResults = document.getElementById('sidebar-no-results');
@@ -250,6 +250,7 @@
             const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
             
             sidebarLoading.classList.remove('hidden');
+            sidebarList.innerHTML = ''; // Clear previous list
 
             try {
                 // Path: /artifacts/{appId}/users/{userId}/client_data/
@@ -274,7 +275,7 @@
         }
 
         /**
-         * Renders the list of documents in the sidebar.
+         * Renders the list of documents in the sidebar including CRUD buttons.
          */
         window.renderSidebar = function(documents) {
             sidebarList.innerHTML = '';
@@ -289,13 +290,20 @@
 
             documents.forEach(doc => {
                 const li = document.createElement('li');
-                li.className = 'p-3 bg-gray-100 rounded-lg border border-gray-200 hover:bg-gray-200 transition duration-150 cursor-pointer';
+                li.className = 'p-3 bg-gray-100 rounded-lg border border-gray-200 hover:bg-gray-200 transition duration-150';
                 li.innerHTML = `
                     <p class="font-semibold text-sm text-gitech-black">${doc.clientAccount.replace(/_/g, '/')}</p>
                     <p class="text-xs text-gray-600 truncate">Client: ${doc.clientName}</p>
-                    <p class="text-xs text-gray-500">Date: ${doc.dateOfSlip || 'N/A'}</p>
+                    <p class="text-xs text-gray-500 mb-2">Date: ${doc.dateOfSlip || 'N/A'}</p>
+                    <div class="flex space-x-2 mt-2">
+                        <button onclick="window.viewSavedDocument('${doc.id}')" 
+                                class="flex-1 py-1 text-xs text-white bg-green-600 rounded hover:bg-green-700 transition">View/Export</button>
+                        <button onclick="window.editSavedDocument('${doc.id}')" 
+                                class="flex-1 py-1 text-xs text-white bg-blue-600 rounded hover:bg-blue-700 transition">Edit</button>
+                        <button onclick="window.deleteSavedDocument('${doc.id}')" 
+                                class="flex-1 py-1 text-xs text-white bg-red-600 rounded hover:bg-red-700 transition">Delete</button>
+                    </div>
                 `;
-                // Add a hidden attribute for easier filtering
                 li.setAttribute('data-search', `${doc.clientAccount} ${doc.clientName} ${doc.projectNumber}`.toLowerCase());
                 
                 sidebarList.appendChild(li);
@@ -312,11 +320,11 @@
 
             for (let i = 0; i < listItems.length; i++) {
                 const li = listItems[i];
-                if (li.id === 'sidebar-loading' || li.textContent.includes('No documents saved')) continue; // Skip messages
+                if (li.id === 'sidebar-loading' || li.textContent.includes('No documents saved')) continue; 
                 
                 const searchValue = li.getAttribute('data-search');
 
-                if (searchValue.includes(filter)) {
+                if (searchValue && searchValue.includes(filter)) {
                     li.style.display = "";
                     foundCount++;
                 } else {
@@ -324,14 +332,240 @@
                 }
             }
             
-            if (foundCount === 0 && listItems.length > 0) {
+            if (foundCount === 0 && listItems.length > 0 && !sidebarLoading.classList.contains('hidden')) {
                 sidebarNoResults.classList.remove('hidden');
             } else {
                 sidebarNoResults.classList.add('hidden');
             }
         }
+        
+        /**
+         * Deletes a document from Firestore and refreshes the sidebar.
+         */
+        window.deleteSavedDocument = async function(docId) {
+            if (!confirm(`Are you sure you want to delete the saved document with account ID: ${docId.replace(/_/g, '/')}`)) {
+                return;
+            }
 
-        // --- Original Core Functions (Updated save and filename) ---
+            if (!window.db || !window.auth.currentUser) {
+                showMessage("Database not initialized or user not signed in.", true);
+                return;
+            }
+
+            const userId = window.auth.currentUser.uid;
+            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+            const docRef = window.doc(window.db, `artifacts/${appId}/users/${userId}/client_data`, docId);
+            
+            try {
+                await window.deleteDoc(docRef);
+                showMessage(`Document ${docId.replace(/_/g, '/')} deleted successfully.`, false);
+                await window.fetchSavedDocuments(); // Refresh list
+                window.clearEditForm(); // Clear the main area if this document was being edited
+            } catch (e) {
+                console.error("Error deleting document:", e);
+                showMessage(`Failed to delete document: ${e.message}`, true);
+            }
+        }
+        
+        /**
+         * Generates the Data PDF (saved extracted fields) and opens it in a new window.
+         */
+        window.viewSavedDocument = async function(docId) {
+            const documentData = savedDocumentsCache.find(doc => doc.id === docId);
+            if (!documentData) {
+                showMessage("Document data not found in cache. Try refreshing the sidebar.", true);
+                return;
+            }
+            
+            const editedData = {
+                dateOfSlip: documentData.dateOfSlip,
+                clientName: documentData.clientName,
+                projectNumber: documentData.projectNumber,
+                clientAccount: documentData.clientAccount,
+            };
+
+            try {
+                // 1. Generate the Data PDF
+                const { jsPDF } = window.jspdf;
+                const dataPdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+
+                const margin = 10;
+                const lineHeight = 7;
+                let currentY = margin;
+                
+                // Title
+                dataPdf.setFontSize(18);
+                dataPdf.setTextColor(26, 26, 26);
+                dataPdf.text('GITECH Saved Slip Data', margin, currentY);
+                currentY += lineHeight * 2;
+                
+                dataPdf.setFontSize(12);
+                dataPdf.setTextColor(0, 0, 0);
+                
+                // Populate fields
+                ['Date Of Slip', 'Client Name', 'Project Number', 'Client Account', 'Original File Name', 'Saved Timestamp'].forEach(label => {
+                    const keyMap = {
+                        'Date Of Slip': 'dateOfSlip',
+                        'Client Name': 'clientName',
+                        'Project Number': 'projectNumber',
+                        'Client Account': 'clientAccount',
+                        'Original File Name': 'fileName',
+                        'Saved Timestamp': 'timestamp'
+                    };
+                    const key = keyMap[label];
+                    
+                    dataPdf.setFont('helvetica', 'bold');
+                    dataPdf.text(`${label}:`, margin, currentY);
+                    dataPdf.setFont('helvetica', 'normal');
+                    dataPdf.text(editedData[key] || documentData[key] || 'N/A', margin + 60, currentY);
+                    currentY += lineHeight;
+                });
+                
+                // Generate filename
+                const safeDate = editedData.dateOfSlip.replace(/[^a-zA-Z0-9]/g, '').substring(0, 8);
+                const safeClient = editedData.clientName.replace(/[^a-zA-Z0-9\s]/g, '').substring(0, 20).trim().replace(/\s/g, '_');
+                const safeProject = editedData.projectNumber.replace(/[^a-zA-Z0-9\s]/g, '').trim().replace(/\s/g, '_');
+                const safeAccount = editedData.clientAccount.replace(/\//g, '_');
+                const fileName = `${safeDate}-${safeClient}-${safeProject}-${safeAccount}-DATA.pdf`; // Added -DATA suffix
+                
+                // Open PDF in new tab
+                const pdfBlob = dataPdf.output('blob');
+                const pdfUrl = URL.createObjectURL(pdfBlob);
+                window.open(pdfUrl, '_blank');
+                // Clean up the URL object immediately after opening
+                setTimeout(() => URL.revokeObjectURL(pdfUrl), 100); 
+
+                showMessage(`Opening saved data PDF for ${fileName}.`, false);
+
+            } catch (error) {
+                console.error("Error viewing saved document:", error);
+                showMessage(`Failed to view document: ${error.message}`, true);
+            }
+        }
+        
+        /**
+         * Fetches document data and opens the edit form.
+         */
+        window.editSavedDocument = function(docId) {
+            const documentData = savedDocumentsCache.find(doc => doc.id === docId);
+            if (!documentData) {
+                showMessage("Document data not found in cache. Try refreshing the sidebar.", true);
+                return;
+            }
+            window.renderEditForm(documentData);
+        }
+
+        /**
+         * Renders an editable form in the main content area for a saved document.
+         */
+        window.renderEditForm = function(data) {
+            resultsContainer.innerHTML = '';
+            
+            const card = document.createElement('div');
+            card.className = 'bg-white p-6 rounded-xl shadow-lg border-t-4 border-blue-600'; // Use blue for editing
+
+            card.innerHTML = 
+            `
+                <h2 class="text-xl font-extrabold text-blue-600 mb-4">
+                    Editing Saved Document: ${data.clientAccount.replace(/_/g, '/')}
+                </h2>
+                <p class="text-sm text-gray-500 mb-6">Original File: ${data.fileName} | Saved: ${new Date(data.timestamp).toLocaleString()}</p>
+                
+                <div class="space-y-6">
+                    <form id="edit-form-${data.id}" class="space-y-4">
+                        <input type="hidden" name="docId" value="${data.id}">
+                        <input type="hidden" name="originalFileName" value="${data.fileName}">
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Date Of Slip</label>
+                            <input type="text" name="dateOfSlip" value="${data.dateOfSlip || 'Not Found'}" required
+                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border focus:ring-blue-600 focus:border-blue-600">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Client Name</label>
+                            <input type="text" name="clientName" value="${data.clientName || 'Not Found'}" required
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border focus:ring-blue-600 focus:border-blue-600">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Project Number</label>
+                            <input type="text" name="projectNumber" value="${data.projectNumber || 'Not Found'}" required
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border focus:ring-blue-600 focus:border-blue-600">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Client Account</label>
+                            <input type="text" name="clientAccount" value="${data.clientAccount || 'Not Found'}" required
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border focus:ring-blue-600 focus:border-blue-600">
+                        </div>
+            
+                        <button type="button"
+                                onclick="updateSavedDocument('${data.id}')"
+                                class="w-full py-2 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 
+                            focus:ring-offset-2 focus:ring-blue-600 transition duration-150 ease-in-out">
+                            Save Changes to Database
+                        </button>
+
+                        <button type="button"
+                                onclick="clearEditForm()"
+                                class="w-full py-2 px-4 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 
+                            focus:ring-offset-2 focus:ring-gray-300 transition duration-150 ease-in-out">
+                            Cancel
+                        </button>
+                    </form>
+                </div>
+            `;
+            resultsContainer.appendChild(card);
+            window.toggleSidebar(); // Close sidebar after opening edit form
+        }
+
+        /**
+         * Handles the save logic for the edit form.
+         */
+        window.updateSavedDocument = async function(originalDocId) {
+            const form = document.getElementById(`edit-form-${originalDocId}`);
+            if (!form) return;
+            
+            const updatedData = {
+                dateOfSlip: form.elements['dateOfSlip'].value.trim(),
+                clientName: form.elements['clientName'].value.trim(),
+                projectNumber: form.elements['projectNumber'].value.trim(),
+                clientAccount: form.elements['clientAccount'].value.trim(),
+            };
+            const originalFileName = form.elements['originalFileName'].value.trim();
+
+            if (updatedData.clientAccount === 'Not Found' || updatedData.clientAccount === '') {
+                 showMessage("Client Account number is required to save data to the database. Please enter a valid account number.", true);
+                return;
+            }
+            
+            const newDocId = updatedData.clientAccount.replace(/\//g, '_'); 
+
+            try {
+                // Check if the primary key (Client Account) changed
+                if (originalDocId !== newDocId) {
+                    await window.deleteSavedDocument(originalDocId);
+                }
+
+                // Use the existing saveToFirestore logic which handles setDoc with merge: true
+                await window.saveToFirestore(updatedData, originalFileName); 
+                
+                showMessage(`Document ${newDocId.replace(/_/g, '/')} updated successfully.`, false);
+                window.clearEditForm();
+
+            } catch (error) {
+                console.error("Error updating document:", error);
+                showMessage(`Failed to update document: ${error.message}`, true);
+            }
+        }
+        
+        /**
+         * Clears the edit form section and resets the results container.
+         */
+        window.clearEditForm = function() {
+            resultsContainer.innerHTML = '<p class="text-center text-gray-500 p-8 border border-dashed rounded-lg">Upload a PDF to begin extraction.</p>';
+        }
+
+
+        // --- Original Core Functions ---
 
         /**
          * Helper function to fetch the original PDF file as an ArrayBuffer.
@@ -380,7 +614,7 @@
                 );
                 await window.setDoc(docRef, dataToSave, { merge: true });
                 
-                // NEW: Refresh sidebar after successful save
+                // Refresh sidebar after successful save/update
                 await window.fetchSavedDocuments();
                 
                 console.log(`Document successfully written to client_data/${docId} by user ${userId}.`);
@@ -643,7 +877,7 @@
         }
 
         /**
-         * Step 4: Render the editable results form.
+         * Step 4: Render the editable results form for new extractions.
          */
         function renderResults() {
             resultsContainer.innerHTML = '';
