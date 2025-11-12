@@ -8,22 +8,41 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <!-- NEW: Include pdf-lib for merging capabilities -->
+    <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.js"></script>
+    
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, setDoc, doc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"; // Added setDoc, doc
 
         // Global Firebase variables
         window.app = null;
         window.db = null;
         window.auth = null;
+        
+        // Custom Firebase Config provided by the user
+        const CUSTOM_FIREBASE_CONFIG = {
+            apiKey: "AIzaSyA_RhnNogN-l45mcrSfKbfipkMYkpfDxrc",
+            authDomain: "gitechslip.firebaseapp.com",
+            projectId: "gitechslip",
+            storageBucket: "gitechslip.firebasestorage.app",
+            messagingSenderId: "577549935977",
+            appId: "1:577549935977:web:fba329f423a895469049f8",
+            measurementId: "G-S11NLH0TYX"
+        };
+
 
         document.addEventListener('DOMContentLoaded', async () => {
             try {
+                // IMPORTANT: Use the global environment variables if available, otherwise use the custom config.
+                // In this environment, __app_id and __firebase_config are typically provided.
                 const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-                const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+                const firebaseConfig = typeof __firebase_config !== 'undefined' 
+                    ? JSON.parse(__firebase_config) 
+                    : CUSTOM_FIREBASE_CONFIG; // Use user-provided config as fallback
                 
-                if (Object.keys(firebaseConfig).length > 0) {
+                if (Object.keys(firebaseConfig).length > 0 && firebaseConfig.apiKey) {
                     window.app = initializeApp(firebaseConfig);
                     window.db = getFirestore(window.app);
                     window.auth = getAuth(window.app);
@@ -37,13 +56,18 @@
                         await signInAnonymously(window.auth);
                         console.log("Firebase signed in anonymously.");
                     }
+                    console.log(`Firestore initialized. App ID: ${appId}`);
                 } else {
-                    console.warn("Firebase configuration not found. Proceeding without authentication.");
+                    console.warn("Firebase configuration not fully available. Proceeding without database storage.");
                 }
             } catch (error) {
                 console.error("Firebase Initialization Error:", error);
             }
         });
+        
+        // Exporting setDoc and doc globally for use in window.generateFinalPDF
+        window.setDoc = setDoc;
+        window.doc = doc;
     </script>
     <style>
         /* Custom styles for better aesthetics and loading visibility */
@@ -87,6 +111,7 @@
             <div id="message-box" class="mt-4 p-3 bg-red-100 text-red-700 rounded-lg hidden"></div>
         </header>
 
+        <!-- File Upload Section with Clear Button -->
         <div class="bg-white p-6 rounded-xl shadow-lg mb-8 border border-gitech-red">
             <label for="pdf-upload" class="block text-lg font-medium text-gray-700 mb-3">Upload PDF Files</label>
             <div class="flex items-center space-x-4">
@@ -98,6 +123,7 @@
                                 file:bg-gitech-yellow-light file:text-gitech-black
                                 hover:file:bg-yellow-100 cursor-pointer"
                        onchange="handleFileSelect(event)">
+                <!-- Clear Button calls the new clearFiles() function -->
                 <button onclick="clearFiles()" class="bg-gray-200 text-gray-700 py-2 px-4 rounded-lg text-sm font-medium hover:bg-gray-300 transition duration-150 whitespace-nowrap">Clear</button>
             </div>
             <p class="text-xs text-gray-500 mt-2">Select one or multiple scanned PDF files.</p>
@@ -120,7 +146,6 @@
         // API Configuration (FIXED SCOPE AND KEY)
         // =========================================================================
         
-        // YOUR PROVIDED API KEY IS INSERTED HERE. 
         const apiKey = 'AIzaSyD96luWwd2cNjPiAAqlkrJ_4dLI8E_kLWk'; 
         const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
 
@@ -133,7 +158,79 @@
         const resultsContainer = document.getElementById('results-container');
         const messageBox = document.getElementById('message-box');
         
-        // --- ADDED: clearFiles function to fix Uncaught ReferenceError ---
+        // Set PDF.js worker source
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+        // --- NEW: Helper function to fetch the original PDF file as an ArrayBuffer. ---
+        window.fetchOriginalPdfFile = async function(fileName) {
+            const files = document.getElementById('pdf-upload').files;
+            const file = Array.from(files).find(f => f.name === fileName);
+
+            if (!file) {
+                throw new Error(`Original file '${fileName}' not found in upload list.`);
+            }
+
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsArrayBuffer(file);
+            });
+        }
+        
+        // --- NEW: Saves the extracted data to the Firestore database. ---
+        window.saveToFirestore = async function(editedData, fileName) {
+            if (!window.db) {
+                console.warn("Firestore not initialized. Skipping database save.");
+                return;
+            }
+            
+            // Use the clientAccount as the document ID for easy querying later
+            const docId = editedData.clientAccount;
+            
+            const dataToSave = {
+                fileName: fileName,
+                timestamp: new Date().toISOString(),
+                ...editedData // Includes dateOfSlip, clientName, projectNumber, clientAccount
+            };
+            
+            // To ensure the data is saved in a location accessible with default security rules,
+            // we use the user's ID for private data storage.
+            const userId = window.auth.currentUser?.uid || 'anonymous';
+            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+            try {
+                // Path: /artifacts/{appId}/users/{userId}/client_data/{clientAccount}
+                const docRef = window.doc(
+                    window.db, 
+                    `artifacts/${appId}/users/${userId}/client_data`, 
+                    docId
+                );
+                
+                await window.setDoc(docRef, dataToSave, { merge: true });
+                
+                console.log(`Document successfully written to client_data/${docId} by user ${userId}.`);
+            } catch (e) {
+                console.error("Error writing document to Firestore:", e);
+                throw new Error("Failed to save data to database.");
+            }
+        }
+
+        /**
+         * Utility to display temporary messages/errors.
+         */
+        function showMessage(text, isError = false) {
+            messageBox.textContent = text;
+            messageBox.classList.remove('hidden', 'bg-red-100', 'bg-green-100', 'text-red-700', 'text-green-700');
+            messageBox.classList.add(isError ? 'bg-red-100' : 'bg-green-100', isError ? 'text-red-700' : 'text-green-700');
+            setTimeout(() => {
+                messageBox.classList.add('hidden');
+            }, 8000); 
+        }
+
+        /**
+         * Function to clear the files and the results.
+         */
         window.clearFiles = function() {
             const pdfFileInput = document.getElementById('pdf-upload');
             if (pdfFileInput) {
@@ -152,21 +249,6 @@
             console.log("Files and results cleared.");
         }
         
-        // Set PDF.js worker source
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-
-        /**
-         * Utility to display temporary messages/errors.
-         */
-        function showMessage(text, isError = false) {
-            messageBox.textContent = text;
-            messageBox.classList.remove('hidden', 'bg-red-100', 'bg-green-100', 'text-red-700', 'text-green-700');
-            messageBox.classList.add(isError ? 'bg-red-100' : 'bg-green-100', isError ? 'text-red-700' : 'text-green-700');
-            setTimeout(() => {
-                messageBox.classList.add('hidden');
-            }, 8000); 
-        }
-
         /**
          * Step 1: Handle file selection and start processing.
          */
@@ -217,7 +299,6 @@
          * Converts a Base64 string into its raw data (excluding the mime type header).
          */
         function base64ToData(base64) {
-            // Find the comma and take the part after it
             const commaIndex = base64.indexOf(',');
             return commaIndex !== -1 ? base64.substring(commaIndex + 1) : base64;
         }
@@ -281,22 +362,20 @@
                         const extractedFields = await getExtractedDataFromGemini(imageData, mimeType);
                         
                         // Prepare the data structure
-                        const extractedText = JSON.stringify(extractedFields, null, 2); // Raw text is now structured JSON
+                        const extractedText = JSON.stringify(extractedFields, null, 2); 
 
                         resolve({
-                            id: Date.now() + Math.random(), // Unique ID
+                            id: Date.now() + Math.random(), 
                             fileName: file.name,
                             originalImageBase64: originalImageBase64,
                             fields: extractedFields,
-                            // Store a prettier JSON string for the debug box
                             extractedText: `<pre>${extractedText}</pre>` 
                         });
 
                     } catch (error) {
-                        // Catch any subsequent errors (e.g., from Gemini API)
                         console.error(`[CRITICAL ERROR] Failed to process file ${file.name}:`, error);
                         showMessage(`Critical error during processing of ${file.name}: ${error.message}`, true);
-                        resolve(null); // Resolve with null if processing fails
+                        resolve(null); 
                     }
                 };
                 fileReader.readAsArrayBuffer(file);
@@ -357,7 +436,7 @@ Return ONLY a single JSON object with these exact keys: "dateOfSlip", "clientNam
                             const delay = Math.pow(2, attempt) * 1000 + Math.random() * 1000;
                             console.warn(`Rate limit hit (429). Retrying in ${Math.round(delay / 1000)}s...`);
                             await new Promise(resolve => setTimeout(resolve, delay));
-                            continue; // Retry request
+                            continue; 
                         }
                         throw new Error(`HTTP error! status: ${response.status} on attempt ${attempt + 1}`);
                     }
@@ -373,7 +452,6 @@ Return ONLY a single JSON object with these exact keys: "dateOfSlip", "clientNam
                             throw new Error("Invalid JSON structure received from model.");
                         }
                     } else {
-                        // Handle case where content part is missing but response is ok
                         throw new Error("No text content found in Gemini response.");
                     }
                 } catch (error) {
@@ -406,7 +484,6 @@ Return ONLY a single JSON object with these exact keys: "dateOfSlip", "clientNam
 
         /**
          * Step 4: Render the editable results form.
-         * MODIFIED: Uses h-96 and object-[50%_0%] to show ~50% of the document from the top.
          */
         function renderResults() {
             resultsContainer.innerHTML = '';
@@ -433,6 +510,7 @@ Return ONLY a single JSON object with these exact keys: "dateOfSlip", "clientNam
                     <div class="mb-6">
                         <p class="text-sm font-medium text-gray-700 mb-2">Original Document Preview (Approx. 50% Height)</p>
                         
+                        <!-- MODIFIED: h-96 for 50% view, object-[50%_0%] to start from the top -->
                         <div class="relative w-full h-96 border rounded-lg overflow-hidden shadow-md">
                             <img src="${result.originalImageBase64}" alt="Original PDF Scan" 
                                 class="w-full h-auto object-cover object-[50%_0%]">
@@ -464,7 +542,7 @@ Return ONLY a single JSON object with these exact keys: "dateOfSlip", "clientNam
                             <button type="button" 
                                     onclick="generateFinalPDF('${result.id}')"
                                     class="w-full py-2 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-gitech-red hover:bg-gitech-red-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gitech-red transition duration-150 ease-in-out">
-                                Save & Export as PDF
+                                Save & Export Merged PDF
                             </button>
                         </form>
                     </div>
@@ -486,9 +564,10 @@ Return ONLY a single JSON object with these exact keys: "dateOfSlip", "clientNam
 
 
         /**
-         * Step 5: Save the results and generate the new PDF.
+         * Step 5: Save the results to Firestore and generate the merged PDF.
+         * MODIFIED: Implements Firestore saving and PDF merging.
          */
-        window.generateFinalPDF = function(resultId) {
+        window.generateFinalPDF = async function(resultId) {
             const result = extractionResults.find(r => r.id.toString() === resultId);
             const form = document.getElementById(`form-${resultId}`);
 
@@ -504,84 +583,100 @@ Return ONLY a single JSON object with these exact keys: "dateOfSlip", "clientNam
                 projectNumber: form.elements['projectNumber'].value.trim(),
                 clientAccount: form.elements['clientAccount'].value.trim(),
             };
-
-            // 2. Normalize filename parts (safe characters only)
-            const safeDate = editedData.dateOfSlip.replace(/[^a-zA-Z0-9]/g, '');
-            // Limit client name length in filename
-            const safeClient = editedData.clientName.replace(/[^a-zA-Z0-9\s]/g, '').substring(0, 20).trim().replace(/\s/g, '_');
-            const safeProject = editedData.projectNumber.replace(/[^a-zA-Z0-9\s]/g, '').trim().replace(/\s/g, '_');
-
-            // Include account number in the filename for better organization
-            const fileName = `${safeDate}-${safeClient}-${safeProject}-${editedData.clientAccount}.pdf`;
-
-            // 3. Initialize jsPDF
-            const { jsPDF } = window.jspdf;
-            const pdf = new jsPDF({
-                orientation: 'portrait',
-                unit: 'mm',
-                format: 'a4'
-            });
-
-            const pdfWidth = pdf.internal.pageSize.getWidth();
-            const pdfHeight = pdf.internal.pageSize.getHeight();
-            const margin = 10;
-            const lineHeight = 7;
-            let currentY = margin;
             
-            // --- A. Add the Original Image ---
-            const imgData = result.originalImageBase64;
-            const imgProps = pdf.getImageProperties(imgData);
-            const imgWidth = pdfWidth - 2 * margin; // Full width minus margins
-            const imgHeight = (imgProps.height * imgWidth) / imgProps.width;
-            
-            // Limit image height to prevent overflow (this uses the full image, not the cropped view)
-            const effectiveImgHeight = Math.min(imgHeight, pdfHeight / 2.5);
+            if (editedData.clientAccount === 'Not Found' || editedData.clientAccount === '') {
+                 showMessage("Client Account number is required to save data to the database. Please enter a valid account number.", true);
+                 return;
+            }
 
-            pdf.addImage(imgData, 'JPEG', margin, currentY, imgWidth, effectiveImgHeight);
-            currentY += effectiveImgHeight + 5; // Add vertical space after image
+            try {
+                // 2. Save Data to Firestore (Database Step)
+                await window.saveToFirestore(editedData, result.fileName);
+                showMessage(`Data saved to Firestore under Client Account: ${editedData.clientAccount}`, false);
+                
+                // 3. Generate the Data PDF (The page containing the extracted text)
+                const { jsPDF } = window.jspdf;
+                const dataPdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
+                const pdfWidth = dataPdf.internal.pageSize.getWidth();
+                const pdfHeight = dataPdf.internal.pageSize.getHeight();
+                const margin = 10;
+                const lineHeight = 7;
+                let currentY = margin;
+                
+                // Add the Original Image Preview (First 50% height)
+                const imgData = result.originalImageBase64;
+                const imgProps = dataPdf.getImageProperties(imgData);
+                const imgWidth = pdfWidth - 2 * margin;
+                const effectiveImgHeight = pdfHeight / 2.5; 
 
-            // --- B. Add Extracted/Edited Text ---
-            pdf.setFontSize(18);
-            pdf.setTextColor(26, 26, 26); // Using GITECH black for headers
-            pdf.text('Extracted & Edited Slip Data', margin, currentY);
-            currentY += lineHeight * 2;
-            
-            pdf.setFontSize(12);
-            pdf.setTextColor(0, 0, 0); // Black
+                dataPdf.addImage(imgData, 'JPEG', margin, currentY, imgWidth, effectiveImgHeight);
+                currentY += effectiveImgHeight + 5; 
 
-            // Date
-            pdf.setFont('helvetica', 'bold');
-            pdf.text('Date of Slip:', margin, currentY);
-            pdf.setFont('helvetica', 'normal');
-            pdf.text(editedData.dateOfSlip, margin + 40, currentY);
-            currentY += lineHeight;
+                // Add Extracted/Edited Text
+                dataPdf.setFontSize(18);
+                dataPdf.setTextColor(26, 26, 26);
+                dataPdf.text('Extracted & Edited Slip Data', margin, currentY);
+                currentY += lineHeight * 2;
+                
+                dataPdf.setFontSize(12);
+                dataPdf.setTextColor(0, 0, 0);
 
-            // Client Name
-            pdf.setFont('helvetica', 'bold');
-            pdf.text('Client Name:', margin, currentY);
-            pdf.setFont('helvetica', 'normal');
-            pdf.text(editedData.clientName, margin + 40, currentY);
-            currentY += lineHeight;
-            
-            // Project Number
-            pdf.setFont('helvetica', 'bold');
-            pdf.text('Project Number:', margin, currentY);
-            pdf.setFont('helvetica', 'normal');
-            pdf.text(editedData.projectNumber, margin + 40, currentY);
-            currentY += lineHeight;
+                // Populate fields in the data PDF
+                ['Date Of Slip', 'Client Name', 'Project Number', 'Client Account'].forEach(label => {
+                    // Normalize label to match the keys in editedData object
+                    const keyMap = {
+                        'Date Of Slip': 'dateOfSlip',
+                        'Client Name': 'clientName',
+                        'Project Number': 'projectNumber',
+                        'Client Account': 'clientAccount'
+                    };
+                    const key = keyMap[label];
+                    
+                    dataPdf.setFont('helvetica', 'bold');
+                    dataPdf.text(`${label}:`, margin, currentY);
+                    dataPdf.setFont('helvetica', 'normal');
+                    dataPdf.text(editedData[key], margin + 40, currentY);
+                    currentY += lineHeight;
+                });
 
-            // Client Account
-            pdf.setFont('helvetica', 'bold');
-            pdf.text('Client Account:', margin, currentY);
-            pdf.setFont('helvetica', 'normal');
-            pdf.text(editedData.clientAccount, margin + 40, currentY);
-            currentY += lineHeight;
-            
-            // 4. Save the document
-            pdf.save(fileName);
+                const dataPdfBytes = dataPdf.output('arraybuffer');
+                
+                // 4. Fetch Original PDF and Merge (Merging Step)
+                const originalPdfBuffer = await window.fetchOriginalPdfFile(result.fileName);
+                
+                const { PDFDocument } = window.pdfLib;
+                
+                const originalDoc = await PDFDocument.load(originalPdfBuffer);
+                const dataDoc = await PDFDocument.load(dataPdfBytes);
+                
+                // Copy all pages from the new data PDF to the end of the original PDF
+                const copiedPages = await originalDoc.copyPages(dataDoc, dataDoc.getPageIndices());
+                copiedPages.forEach(page => originalDoc.addPage(page));
 
-            showMessage(`Successfully created PDF: ${fileName}`, false);
+                // 5. Save the Merged Document
+                const mergedPdfBytes = await originalDoc.save();
+
+                // 6. Normalize filename and initiate download
+                const safeDate = editedData.dateOfSlip.replace(/[^a-zA-Z0-9]/g, '').substring(0, 8);
+                const safeClient = editedData.clientName.replace(/[^a-zA-Z0-9\s]/g, '').substring(0, 20).trim().replace(/\s/g, '_');
+                const safeProject = editedData.projectNumber.replace(/[^a-zA-Z0-9\s]/g, '').trim().replace(/\s/g, '_');
+                const fileName = `MERGED-${safeDate}-${safeClient}-${safeProject}-${editedData.clientAccount}.pdf`;
+                
+                const blob = new Blob([mergedPdfBytes], { type: 'application/pdf' });
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = fileName;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+
+                showMessage(`Successfully created and downloaded merged PDF: ${fileName}`, false);
+
+            } catch (error) {
+                console.error("Error during PDF generation, merging, or Firestore save:", error);
+                showMessage(`Error exporting/merging PDF or saving to database: ${error.message}`, true);
+            }
         }
     </script>
 </body>
