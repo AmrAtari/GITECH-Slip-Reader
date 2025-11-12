@@ -592,7 +592,7 @@
         window.saveToFirestore = async function(editedData, fileName) {
             if (!window.db) {
                 console.warn("Firestore not initialized. Skipping database save.");
-                return;
+                throw new Error("Database connection not available.");
             }
             
             const docId = editedData.clientAccount.replace(/\//g, '_'); 
@@ -877,7 +877,7 @@
         }
 
         /**
-         * Step 4: Render the editable results form for new extractions.
+         * Step 4: Render the editable results form for new extractions (updated buttons).
          */
         function renderResults() {
             resultsContainer.innerHTML = '';
@@ -935,12 +935,22 @@
                                         class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border focus:ring-gitech-red focus:border-gitech-red">
                             </div>
                 
-                            <button type="button"
-                                    onclick="generateFinalPDF('${result.id}')"
-                                    class="w-full py-2 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-gitech-red hover:bg-gitech-red-dark focus:outline-none focus:ring-2 
-                                focus:ring-offset-2 focus:ring-gitech-red transition duration-150 ease-in-out">
-                                Save & Export Merged PDF
-                            </button>
+                            <div class="flex space-x-4">
+                                <button type="button"
+                                        onclick="saveDataToList('${result.id}')"
+                                        class="flex-1 py-2 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 
+                                    focus:ring-offset-2 focus:ring-green-600 transition duration-150 ease-in-out">
+                                    Save to List
+                                </button>
+
+                                <button type="button"
+                                        onclick="exportMergedPdf('${result.id}')"
+                                        class="flex-1 py-2 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-gitech-red hover:bg-gitech-red-dark focus:outline-none focus:ring-2 
+                                    focus:ring-offset-2 focus:ring-gitech-red transition duration-150 ease-in-out">
+                                    Export Merged PDF
+                                </button>
+                            </div>
+
                         </form>
         
                     </div>
@@ -963,20 +973,9 @@
 
 
         /**
-         * Step 5: Save the results to Firestore and generate the merged PDF.
+         * NEW: Saves the form data to the Firestore list without exporting a PDF.
          */
-        window.generateFinalPDF = async function(resultId) {
-            
-            // 1. Robustly check for the PDF-LIB library
-            const PDFLib = window.PDFLib;
-            if (!PDFLib || !PDFLib.PDFDocument) {
-                console.error("PDF-LIB library not available. Cannot create merged PDF.");
-                showMessage("Critical Error: PDF merging library not loaded. (window.PDFLib is unavailable)", true);
-                return;
-            }
-            
-            const PDFDocument = PDFLib.PDFDocument;
-            
+        window.saveDataToList = async function(resultId) {
             const result = extractionResults.find(r => r.id.toString() === resultId);
             const form = document.getElementById(`form-${resultId}`);
             if (!result || !form) {
@@ -984,7 +983,6 @@
                 return;
             }
 
-            // 2. Get the edited values from the form
             const editedData = {
                 dateOfSlip: form.elements['dateOfSlip'].value.trim(),
                 clientName: form.elements['clientName'].value.trim(),
@@ -997,11 +995,51 @@
             }
 
             try {
-                // 3. Save Data to Firestore (Database Step)
                 await window.saveToFirestore(editedData, result.fileName);
-                showMessage(`Data saved to Firestore under Client Account: ${editedData.clientAccount}. Merged PDF downloading...`, false);
+                showMessage(`Data successfully saved to the **Saved Documents List** under Client Account: ${editedData.clientAccount}.`, false);
+            } catch (error) {
+                console.error("Error during Firestore save:", error);
+                showMessage(`Error saving data to list: ${error.message}`, true);
+            }
+        }
+
+
+        /**
+         * NEW: Generates the Merged PDF and exports it to PC without saving to Firestore.
+         */
+        window.exportMergedPdf = async function(resultId) {
+            
+            const PDFLib = window.PDFLib;
+            if (!PDFLib || !PDFLib.PDFDocument) {
+                console.error("PDF-LIB library not available. Cannot create merged PDF.");
+                showMessage("Critical Error: PDF merging library not loaded.", true);
+                return;
+            }
+            const PDFDocument = PDFLib.PDFDocument;
+            
+            const result = extractionResults.find(r => r.id.toString() === resultId);
+            const form = document.getElementById(`form-${resultId}`);
+            if (!result || !form) {
+                showMessage("Result or form not found.", true);
+                return;
+            }
+
+            // Get the edited values from the form
+            const editedData = {
+                dateOfSlip: form.elements['dateOfSlip'].value.trim(),
+                clientName: form.elements['clientName'].value.trim(),
+                projectNumber: form.elements['projectNumber'].value.trim(),
+                clientAccount: form.elements['clientAccount'].value.trim(),
+            };
+            if (editedData.clientAccount === 'Not Found' || editedData.clientAccount === '') {
+                 showMessage("Client Account number is required to generate the PDF filename. Please enter a valid account number.", true);
+                return;
+            }
+
+            try {
+                showMessage(`Generating merged PDF for export...`, false);
                 
-                // 4. Generate the Data PDF (The page containing the extracted text)
+                // 1. Generate the Data PDF (The page containing the extracted text)
                 const { jsPDF } = window.jspdf;
                 const dataPdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
@@ -1046,7 +1084,7 @@
                 });
                 const dataPdfBytes = dataPdf.output('arraybuffer');
                 
-                // 5. Fetch Original PDF and Merge (Merging Step)
+                // 2. Fetch Original PDF and Merge (Merging Step)
                 const originalPdfBuffer = await window.fetchOriginalPdfFile(result.fileName);
                 const originalDoc = await PDFDocument.load(originalPdfBuffer);
                 const dataDoc = await PDFDocument.load(dataPdfBytes);
@@ -1055,16 +1093,16 @@
                 const copiedPages = await originalDoc.copyPages(dataDoc, dataDoc.getPageIndices());
                 copiedPages.forEach(page => originalDoc.addPage(page));
 
-                // 6. Save the Merged Document
+                // 3. Save the Merged Document
                 const mergedPdfBytes = await originalDoc.save();
                 
-                // 7. Normalize filename and initiate download
+                // 4. Normalize filename and initiate download
                 const safeDate = editedData.dateOfSlip.replace(/[^a-zA-Z0-9]/g, '').substring(0, 8);
                 const safeClient = editedData.clientName.replace(/[^a-zA-Z0-9\s]/g, '').substring(0, 20).trim().replace(/\s/g, '_');
                 const safeProject = editedData.projectNumber.replace(/[^a-zA-Z0-9\s]/g, '').trim().replace(/\s/g, '_');
                 const safeAccount = editedData.clientAccount.replace(/\//g, '_');
                 
-                // FIX: Removed the "MERGED-" prefix
+                // Use the correct filename format: without "MERGED-"
                 const fileName = `${safeDate}-${safeClient}-${safeProject}-${safeAccount}.pdf`;
                 
                 const blob = new Blob([mergedPdfBytes], { type: 'application/pdf' });
@@ -1078,8 +1116,8 @@
                 showMessage(`Successfully created and downloaded PDF: ${fileName}`, false);
 
             } catch (error) {
-                console.error("Error during PDF generation, merging, or Firestore save:", error);
-                showMessage(`Error exporting/merging PDF or saving to database: ${error.message}`, true);
+                console.error("Error during PDF generation or merging:", error);
+                showMessage(`Error exporting merged PDF: ${error.message}`, true);
             }
         }
     </script>
